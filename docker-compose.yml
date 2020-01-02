@@ -1,0 +1,8 @@
+version: "3.7"
+
+services:
+  regulator:
+    image: paris/swarm-regulator:${DOCKER_IMAGE_TAG:-latest}
+    build: .
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
