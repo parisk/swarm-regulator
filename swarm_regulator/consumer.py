@@ -3,14 +3,11 @@ import json
 
 import aiodocker
 
+from .event_types import service
 
 EVENT_TYPES = {
-    "service": {
-        "get_update_payload": lambda resource: resource["Spec"],
-        "get_params": lambda resource: {"version": resource["Version"]["Index"]},
-    }
+    "service": service,
 }
-SUPPORTED_EVENT_ACTIONS = ("create", "update")
 
 
 _rules = []
@@ -25,16 +22,19 @@ async def consume_event(docker, event: dict):
     event_action = event["Action"]
     resource_id = event["Actor"]["ID"]
 
-    if (event_type not in EVENT_TYPES) or (
-        event_action not in SUPPORTED_EVENT_ACTIONS
-    ):
+    if event_type not in EVENT_TYPES:
+        return
+
+    resource_module = EVENT_TYPES[event_type]
+
+    if event_action not in resource_module.SUPPORTED_ACTIONS:
         return
 
     api_name = f"{event_type}s"
     api = getattr(docker, api_name)
     resource = await api.inspect(resource_id)
 
-    update_payload = EVENT_TYPES[event_type]["get_update_payload"](resource)
+    update_payload = resource_module.extract_update_payload(resource)
 
     resource_rules = [
         (condition, callback)
@@ -57,9 +57,8 @@ async def consume_event(docker, event: dict):
             update_payload = regulated_payload
 
     data = json.dumps(update_payload)
-    params = EVENT_TYPES[event_type]["get_params"](resource)
+    params = resource_module.extract_update_params(resource)
 
-    print(data)
     await docker._query_json(
         f"{api_name}/{resource_id}/update", method="POST", data=data, params=params,
     )
