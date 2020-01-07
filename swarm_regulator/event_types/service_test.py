@@ -8,7 +8,8 @@ from . import service
 @pytest.fixture
 def service_payload():
     current_dir = os.path.dirname(os.path.realpath(__file__))
-    fixtures_dir = os.path.join(current_dir, "fixtures")
+    parent_dir = os.path.join(current_dir, os.path.pardir)
+    fixtures_dir = os.path.join(parent_dir, "fixtures")
     fixture_file = os.path.join(fixtures_dir, "service.json")
 
     with open(fixture_file) as fixture:
