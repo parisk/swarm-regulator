@@ -1,9 +1,11 @@
 import asyncio
 import copy
 import json
+import logging
 
 import aiodocker
 
+from . import logger
 from .event_types import service
 
 EVENT_TYPES = {
@@ -46,8 +48,11 @@ async def _regulate_payload(payload, rules):
         copied_payload = copy.deepcopy(payload)
         regulated_payload = await callback(copied_payload)
 
-        if _should_accept_regulated_payload(regulated_payload, condition):
-            update_payload = regulated_payload
+        if not _should_accept_regulated_payload(regulated_payload, condition):
+            logging.warn(f"Cannot accept regulated payload for {event_type} {resource_id} by {callback}. Ignoring.")
+            continue
+
+        update_payload = regulated_payload
 
     return update_payload
 
@@ -76,13 +81,17 @@ async def consume_event(docker, event: dict):
     resource_rules = _get_rules_for_event_type(event_type)
     rules = _get_rules_with_matching_conditions(resource_rules, update_payload)
 
+    logging.info(f"Consuming {event_action} event for {event_type} {resource_id}.")
+
     if not len(rules):
+        logging.info(f"No rules matching {event_type} {resource_id}. Nothing to do.")
         return
 
     regulated_update_payload = await _regulate_payload(update_payload, rules)
     data = json.dumps(regulated_update_payload)
     params = resource_module.extract_update_params(resource)
 
+    logging.info(f"Regulating {event_type} {resource_id}.")
     await docker._query_json(
         f"{api_name}/{resource_id}/update", method="POST", data=data, params=params,
     )
@@ -97,4 +106,7 @@ async def main():
 
 
 def run():
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logging.info("Exiting. Received keyboard interupt (Ctrl + C).")
