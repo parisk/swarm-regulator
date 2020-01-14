@@ -49,7 +49,7 @@ async def _regulate_payload(payload, rules):
         regulated_payload = await callback(copied_payload)
 
         if not _should_accept_regulated_payload(regulated_payload, condition):
-            logging.warn(f"Cannot accept regulated payload for {event_type} {resource_id} by {callback}. Ignoring.")
+            logging.warn(f"Cannot accept regulated payload for by {callback}. Ignoring.")
             continue
 
         update_payload = regulated_payload
