@@ -43,6 +43,7 @@ def _should_accept_regulated_payload(payload, condition):
 
 async def _regulate_payload(payload, rules):
     update_payload = payload
+    rules_applied = 0
 
     for condition, callback in rules:
         copied_payload = copy.deepcopy(payload)
@@ -52,9 +53,10 @@ async def _regulate_payload(payload, rules):
             logging.warn(f"Cannot accept regulated payload for by {callback}. Ignoring.")
             continue
 
+        rules_applied += 1
         update_payload = regulated_payload
 
-    return update_payload
+    return update_payload, rules_applied
 
 
 def register_rule(resource_type: str, condition: callable, callback: callable):
@@ -87,7 +89,12 @@ async def consume_event(docker, event: dict):
         logging.info(f"No rules matching {event_type} {resource_id}. Nothing to do.")
         return
 
-    regulated_update_payload = await _regulate_payload(update_payload, rules)
+    regulated_update_payload, rules_applied = await _regulate_payload(update_payload, rules)
+
+    if not len(rules_applied):
+        logging.info(f"No rules could be applied on {event_type} {resource_id}. Nothing to do.")
+        return
+
     data = json.dumps(regulated_update_payload)
     params = resource_module.extract_update_params(resource)
 
